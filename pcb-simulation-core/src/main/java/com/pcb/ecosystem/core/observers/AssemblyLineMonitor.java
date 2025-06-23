@@ -25,6 +25,9 @@ public class AssemblyLineMonitor implements Observer {
     
     // Station name mapping for consistent output
     private Map<String, String> stationDisplayNames;
+
+    // report for API
+    private static Map<String, Object> latestReportData = new HashMap<>();
     
     
     public AssemblyLineMonitor(String monitorName) {
@@ -125,6 +128,9 @@ public class AssemblyLineMonitor implements Observer {
         System.out.println("Final Results");
         System.out.println("Total failed PCBs: " + totalFailedPcbs);
         System.out.println("Total PCBs produced: " + totalPcbsProduced);
+
+        // save data for API
+        saveReportData();
     }
     
     // Calculate total failed PCBs (station failures + defect failures)
@@ -133,5 +139,29 @@ public class AssemblyLineMonitor implements Observer {
         int totalDefectFailures = pcbDefectFailures.values().stream().mapToInt(Integer::intValue).sum();
         return totalStationFailures + totalDefectFailures;
     }
+
+    public static Map<String, Object> getLatestReportData() {
+        return latestReportData;
+    }
+
+    private void saveReportData() {
+        Map<String, Object> report = new HashMap<>();
+        report.put("pcbType", pcbType);
+        report.put("pcbsRun", pcbsRun);
+        report.put("boardsCompleted", boardsCompleted);
+        report.put("totalFailedPcbs", getTotalFailedPcbs());
+        
+        // Calculate success rate
+        double successRate = pcbsRun > 0 ? ((double) boardsCompleted / pcbsRun) * 100 : 0;
+        report.put("successRate", Math.round(successRate * 100.0) / 100.0);
+        
+        // Add failure data
+        report.put("stationFailures", new HashMap<>(stationFailures));
+        report.put("defectFailures", new HashMap<>(pcbDefectFailures));
+        report.put("timestamp", java.time.LocalDateTime.now().toString());
+        
+        latestReportData = report;
+    }
+    
     
 }

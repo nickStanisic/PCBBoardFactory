@@ -3,6 +3,7 @@ com/pcb/ecosystem/core/station_hierarchy/defect_detection_stations/PlaceComponen
 com/pcb/ecosystem/core/simulation_control/AssemblyLine.class
 com/pcb/ecosystem/core/Main.class
 com/pcb/ecosystem/core/observers/AssemblyLineMonitor.class
+com/pcb/ecosystem/core/factory/PCBBoardFactory.class
 com/pcb/ecosystem/core/station_hierarchy/non_defect_stations/CleaningStation.class
 com/pcb/ecosystem/core/station_hierarchy/defect_detection_stations/HandSolderingAssemblyStation.class
 com/pcb/ecosystem/core/abstract_classes/Station.class
@@ -17,4 +18,5 @@ com/pcb/ecosystem/core/station_hierarchy/non_defect_stations/ReflowSolderStation
 com/pcb/ecosystem/core/board_hierarchy/TestBoard.class
 com/pcb/ecosystem/core/board_hierarchy/GatewayBoard.class
 com/pcb/ecosystem/core/abstract_classes/PCBDefectStation.class
+com/pcb/ecosystem/core/ReportController.class
 com/pcb/ecosystem/core/board_hierarchy/SensorBoard.class
