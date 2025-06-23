@@ -1,149 +1,65 @@
-package com.pcb.ecosystem.core.observers;
+// ADD these imports at the top
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.stereotype.Component;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
-import com.pcb.ecosystem.core.interfaces.Observer;
-import com.pcb.ecosystem.core.abstract_classes.PCBBoard;
-import com.pcb.ecosystem.core.abstract_classes.Station;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.LinkedHashMap;
-
-/**
- * monitors assembly line events
- */
+// ADD @Component annotation to your class
+@Component
 public class AssemblyLineMonitor implements Observer {
     
+    // Your existing fields stay exactly the same
     private String monitorName;
     private String pcbType;
     private int pcbsRun;
     private int boardsCompleted;
-    
-    // Station failure tracking 
     private Map<String, Integer> stationFailures;
-    
-    // PCB defect tracking 
     private Map<String, Integer> pcbDefectFailures;
-    
-    // Station name mapping for consistent output
     private Map<String, String> stationDisplayNames;
-
-    // report for API
+    
     private static Map<String, Object> latestReportData = new HashMap<>();
+    private static RedisTemplate<String, String> redisTemplate;
+    private static ObjectMapper objectMapper = new ObjectMapper();
     
-    
-    public AssemblyLineMonitor(String monitorName) {
-        this.monitorName = monitorName;
-        this.pcbType = "";
-        this.pcbsRun = 0;
-        this.boardsCompleted = 0;
-        
-        // Initialize tracking maps with ordered station names
-        this.stationFailures = new LinkedHashMap<>();
-        this.pcbDefectFailures = new LinkedHashMap<>();
-        this.stationDisplayNames = new HashMap<>();
-        
-        initializeStationMaps();
+    @Autowired
+    public void setRedisTemplate(RedisTemplate<String, String> redisTemplate) {
+        AssemblyLineMonitor.redisTemplate = redisTemplate;
     }
     
-    private void initializeStationMaps() {
-        // Initialize all stations with 0 counts to ensure they appear in output
-        stationFailures.put("Apply Solder Paste", 0);
-        stationFailures.put("Place Components", 0);
-        stationFailures.put("Reflow Solder", 0);
-        stationFailures.put("Optical Inspection", 0);
-        stationFailures.put("Hand Soldering Assembly", 0);
-        stationFailures.put("Cleaning", 0);
-        stationFailures.put("Depanelization", 0);
-        stationFailures.put("Test", 0);
-        
-        // Only defect detection stations for PCB defects
-        pcbDefectFailures.put("Place Components", 0);
-        pcbDefectFailures.put("Optical Inspection", 0);
-        pcbDefectFailures.put("Hand Soldering Assembly", 0);
-        pcbDefectFailures.put("Test", 0);
-        
-        // Map actual station names to display names
-        stationDisplayNames.put("Apply Solder Paste", "Apply Solder Paste");
-        stationDisplayNames.put("Place Components", "Place Components");
-        stationDisplayNames.put("Reflow Solder", "Reflow Solder");
-        stationDisplayNames.put("Optical Inspection", "Optical Inspection");
-        stationDisplayNames.put("Hand Soldering Assembly", "Hand Soldering/Assembly");
-        stationDisplayNames.put("Cleaning", "Cleaning");
-        stationDisplayNames.put("Depanelization", "Depanelization");
-        stationDisplayNames.put("Test", "Test (ICT or Flying Probe)");
-    }
     
-    public void setPcbType(String pcbType) {
-        this.pcbType = pcbType;
-    }
-    
-    public void setPcbsRun(int pcbsRun) {
-        this.pcbsRun = pcbsRun;
-    }
-    
-    @Override
-    public void onDefectDetected(Station station, PCBBoard board) {
-        String stationName = station.getStationName();
-        pcbDefectFailures.put(stationName, pcbDefectFailures.getOrDefault(stationName, 0) + 1);
-    }
-    
-    @Override
-    public void onStationFailure(Station station, PCBBoard board) {
-        String stationName = station.getStationName();
-        stationFailures.put(stationName, stationFailures.getOrDefault(stationName, 0) + 1);
-    }
-    
-    @Override
-    public void onBoardCompleted(PCBBoard board) {
-        boardsCompleted++;
-    }
-    
-    // Method to print detailed statistics in the requested format
-    public void printDetailedStatistics() {
-        System.out.println("PCB type: " + pcbType);
-        System.out.println("PCBs run: " + pcbsRun);
-        System.out.println();
-        
-        // Station Failures
-        System.out.println("Station Failures");
-        for (Map.Entry<String, Integer> entry : stationFailures.entrySet()) {
-            String displayName = stationDisplayNames.getOrDefault(entry.getKey(), entry.getKey());
-            System.out.println(displayName + ": " + entry.getValue());
-        }
-        System.out.println();
-        
-        // PCB Defect Failures
-        System.out.println("PCB Defect Failures");
-        for (Map.Entry<String, Integer> entry : pcbDefectFailures.entrySet()) {
-            if (entry.getValue() > 0) { // Only show stations with defects
-                String displayName = stationDisplayNames.getOrDefault(entry.getKey(), entry.getKey());
-                System.out.println(displayName + " " + entry.getValue());
+    /**
+     * Get latest report from Redis
+     */
+    public static Map<String, Object> getLatestReportFromRedis() {
+        try {
+            if (redisTemplate != null) {
+                String jsonData = redisTemplate.opsForValue().get("pcb:latest_report");
+                if (jsonData != null) {
+                    return objectMapper.readValue(jsonData, Map.class);
+                }
             }
+        } catch (Exception e) {
+            System.err.println("Failed to read from Redis: " + e.getMessage());
         }
-        System.out.println();
-        
-        // Final Results
-        int totalFailedPcbs = getTotalFailedPcbs();
-        int totalPcbsProduced = pcbsRun - totalFailedPcbs;
-        
-        System.out.println("Final Results");
-        System.out.println("Total failed PCBs: " + totalFailedPcbs);
-        System.out.println("Total PCBs produced: " + totalPcbsProduced);
-
-        // save data for API
-        saveReportData();
+        return new HashMap<>();
     }
     
-    // Calculate total failed PCBs (station failures + defect failures)
-    public int getTotalFailedPcbs() {
-        int totalStationFailures = stationFailures.values().stream().mapToInt(Integer::intValue).sum();
-        int totalDefectFailures = pcbDefectFailures.values().stream().mapToInt(Integer::intValue).sum();
-        return totalStationFailures + totalDefectFailures;
+    /**
+     * Save report data to Redis
+     */
+    private void saveToRedis(Map<String, Object> reportData) {
+        try {
+            if (redisTemplate != null) {
+                String jsonData = objectMapper.writeValueAsString(reportData);
+                redisTemplate.opsForValue().set("pcb:latest_report", jsonData);
+                System.out.println("Report saved to Redis");
+            }
+        } catch (Exception e) {
+            System.err.println("Failed to save to Redis: " + e.getMessage());
+        }
     }
-
-    public static Map<String, Object> getLatestReportData() {
-        return latestReportData;
-    }
-
+    
+    // UPDATE your existing saveReportData method to add ONE line:
     private void saveReportData() {
         Map<String, Object> report = new HashMap<>();
         report.put("pcbType", pcbType);
@@ -151,17 +67,21 @@ public class AssemblyLineMonitor implements Observer {
         report.put("boardsCompleted", boardsCompleted);
         report.put("totalFailedPcbs", getTotalFailedPcbs());
         
-        // Calculate success rate
         double successRate = pcbsRun > 0 ? ((double) boardsCompleted / pcbsRun) * 100 : 0;
         report.put("successRate", Math.round(successRate * 100.0) / 100.0);
         
-        // Add failure data
         report.put("stationFailures", new HashMap<>(stationFailures));
         report.put("defectFailures", new HashMap<>(pcbDefectFailures));
         report.put("timestamp", java.time.LocalDateTime.now().toString());
         
         latestReportData = report;
+        
+        // ADD THIS ONE LINE
+        saveToRedis(report);
     }
     
-    
+    // Your existing getLatestReportData method stays the same
+    public static Map<String, Object> getLatestReportData() {
+        return latestReportData;
+    }
 }
