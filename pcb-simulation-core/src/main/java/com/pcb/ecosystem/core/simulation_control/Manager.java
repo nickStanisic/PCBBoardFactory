@@ -47,5 +47,9 @@ public class Manager {
         // Get final report from monitor
         monitor.printDetailedStatistics();
     }
+
+    public AssemblyLineMonitor getMonitor() {
+        return monitor;
+    }
     
 }

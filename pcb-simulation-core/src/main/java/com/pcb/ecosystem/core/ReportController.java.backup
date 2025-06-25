@@ -21,7 +21,12 @@ public class ReportController {
     
     @GetMapping("/api/report")
     public Map<String, Object> getReport() {
-        Map<String, Object> reportData = AssemblyLineMonitor.getLatestReportData();
+        // Try Redis first, fallback to static storage
+        Map<String, Object> reportData = AssemblyLineMonitor.getLatestReportFromRedis();
+        
+        if (reportData.isEmpty()) {
+            reportData = AssemblyLineMonitor.getLatestReportData();
+        }
         
         if (reportData.isEmpty()) {
             Map<String, Object> emptyReport = new HashMap<>();
@@ -31,5 +36,10 @@ public class ReportController {
         }
         
         return reportData;
+    }
+    
+    @GetMapping("/api/redis-report")
+    public Map<String, Object> getRedisReport() {
+        return AssemblyLineMonitor.getLatestReportFromRedis();
     }
 }
